@@ -246,9 +246,15 @@ object LowLevelAPI extends App {
       )
   }
 
-  val bindingFuture = Http().bindAndHandle(exerciseBasedRequestHandler, "localhost", 8388)
-  bindingFuture.flatMap(binding => binding.unbind())
-    .onComplete(_ => system.terminate())
+  Http().bindAndHandle(exerciseBasedRequestHandler, "localhost", 8388)
+
+  // shutdown the server
+//  val bindingFuture = Http().bindAndHandle(exerciseBasedRequestHandler, "localhost", 8388)
+//  bindingFuture.flatMap(binding => binding.unbind())
+//    .onComplete(_ => system.terminate())
+
+
+
 
 
 }
