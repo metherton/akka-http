@@ -7,7 +7,7 @@ import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpMethods, HttpRequest, HttpResponse, StatusCodes, Uri}
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import part2_lowlevelserver.GuitarDB.{CreateGuitar, FindAllGuitars, FindGuitar, GuitarCreated}
+import part2_lowlevelserver.GuitarDB.{AddQuantity, CreateGuitar, FindAllGuitars, FindGuitar, FindGuitarsInStock, GuitarCreated}
 
 import scala.concurrent.duration._
 import scala.concurrent.Future
@@ -22,6 +22,8 @@ object GuitarDB {
   case class GuitarCreated(id: Int)
   case class FindGuitar(id: Int)
   case object FindAllGuitars
+  case class AddQuantity(id: Int, quantity: Int)
+  case class FindGuitarsInStock(inStock: Boolean)
 }
 
 class GuitarDB extends Actor with ActorLogging {
@@ -43,7 +45,20 @@ class GuitarDB extends Actor with ActorLogging {
       guitars = guitars + (currentGuitarId -> guitar)
       sender() ! GuitarCreated(currentGuitarId)
       currentGuitarId += 1
-
+    case AddQuantity(id, quantity) =>
+      log.info(s"Trying to add $quantity items for guitar $id")
+      val guitar: Option[Guitar] = guitars.get(id)
+      val newGuitar: Option[Guitar] = guitar.map {
+        case Guitar(make, model, q) => Guitar(make, model, q + quantity)
+      }
+      newGuitar.foreach(guitar => guitars = guitars + (id -> guitar))
+      sender() ! newGuitar
+    case FindGuitarsInStock(inStock) =>
+      log.info(s"searching for all guitars ${if(inStock) "in"  else "out of" } stock")
+      if (inStock)
+        sender() ! guitars.values.filter(_.quantity > 0)
+      else
+        sender() ! guitars.values.filter(_.quantity == 0)
   }
 }
 
@@ -75,7 +90,8 @@ object LowLevelRest extends App with GuitarStoreJsonProtocol {
     """
       |{
       |  "make": "Fender",
-      |  "model": "Stratocaster"
+      |  "model": "Stratocaster",
+      |  "quantity": 3
       |}
     """.stripMargin
 
@@ -121,8 +137,58 @@ object LowLevelRest extends App with GuitarStoreJsonProtocol {
     }
   }
 
+//  def getInventory(query: Query): Future[HttpResponse] = {
+//    val inStock = query.get("inStock").map(_.toBoolean) // Option[Int]
+//    inStock match {
+//      case None => Future(HttpResponse(StatusCodes.NotFound)) // api/guitar?inStock=
+//      case Some(inStock: Boolean) =>
+//        val guitarFutures: Future[List[Guitar]] = (guitarDb ? FindAllGuitars()).mapTo[List[Guitar]]
+//        guitarFutures.filter((guitar) => {if (inStock) guitar.quantit}).map {
+//
+//        }
+//    }
+//  }
+
 
   val requestHandler: HttpRequest => Future[HttpResponse] = {
+    case HttpRequest(HttpMethods.POST, uri@Uri.Path("/api/guitar/inventory"),_, _, _) =>
+      val query = uri.query()
+      val guitarId: Option[Int] = query.get("id").map(_.toInt) // Option[Int]
+      val guitarQuantity: Option[Int] = query.get("quantity").map(_.toInt) // Option[Int]
+      val validGuitarResponseFuture: Option[Future[HttpResponse]] = for {
+        id <- guitarId
+        quantity <- guitarQuantity
+      } yield {
+        val newGuitarFuture: Future[Option[Guitar]] = (guitarDb ? AddQuantity(id, quantity)).mapTo[Option[Guitar]]
+        newGuitarFuture.map(_ => HttpResponse(StatusCodes.OK))
+      }
+      validGuitarResponseFuture.getOrElse(Future(HttpResponse(StatusCodes.BadRequest)))
+    case HttpRequest(HttpMethods.GET, uri@Uri.Path("/api/guitar/inventory"),_, _, _) =>
+      /*
+          Query parameter handling code
+          localhost:8080/api/endpoint?param1=value1&param2=value2
+       */
+
+      val query = uri.query() // query object <=> Map[String, String]
+      val inStockOption = query.get("inStock").map(_.toBoolean) // Option[Boolean]
+
+      inStockOption match {
+        case Some(inStock) =>
+          val guitarsFuture: Future[List[Guitar]] = (guitarDb ? FindGuitarsInStock(inStock)).mapTo[List[Guitar]]
+          guitarsFuture.map { guitars =>
+            HttpResponse(
+              entity = HttpEntity(
+                ContentTypes.`application/json`,
+                guitars.toJson.prettyPrint
+              )
+            )
+          }
+        case None => Future(HttpResponse(StatusCodes.BadRequest))
+      }
+
+
+
+//      getInventory(query)
     case HttpRequest(HttpMethods.GET, uri@Uri.Path("/api/guitar"),_, _, _) =>
       /*
           Query parameter handling code
