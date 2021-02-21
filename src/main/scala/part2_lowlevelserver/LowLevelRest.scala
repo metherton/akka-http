@@ -3,10 +3,11 @@ package part2_lowlevelserver
 import akka.pattern.ask
 import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpMethods, HttpRequest, HttpResponse, StatusCodes, Uri}
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import part2_lowlevelserver.GuitarDB.{CreateGuitar, FindAllGuitars, GuitarCreated}
+import part2_lowlevelserver.GuitarDB.{CreateGuitar, FindAllGuitars, FindGuitar, GuitarCreated}
 
 import scala.concurrent.duration._
 import scala.concurrent.Future
@@ -14,7 +15,7 @@ import scala.concurrent.Future
 // step 1
 import spray.json._
 
-case class Guitar(make: String, model: String)
+case class Guitar(make: String, model: String, quantity: Int = 0)
 
 object GuitarDB {
   case class CreateGuitar(guitar: Guitar)
@@ -49,7 +50,7 @@ class GuitarDB extends Actor with ActorLogging {
 //step 2
 trait GuitarStoreJsonProtocol extends DefaultJsonProtocol {
   // step 3
-  implicit val guitarFormat = jsonFormat2(Guitar)
+  implicit val guitarFormat = jsonFormat3(Guitar)
 }
 
 
@@ -61,6 +62,7 @@ object LowLevelRest extends App with GuitarStoreJsonProtocol {
 
   /*
       GET on localhost:8080/api/guitar => all the guitars in the store
+      GET on localhost:8080/api/guitar?id=X => fetches guitar associated with id X
       POST on localhost:8080/api/guitar => insert the guitar into the store
    */
 
@@ -99,17 +101,51 @@ object LowLevelRest extends App with GuitarStoreJsonProtocol {
    */
 
   implicit val defaultTimeout = Timeout(2 seconds)
+
+  def getGuitar(query: Query): Future[HttpResponse] = {
+    val guitarId = query.get("id").map(_.toInt) // Option[Int]
+    guitarId match {
+      case None => Future(HttpResponse(StatusCodes.NotFound)) // api/guitar?id=
+      case Some(id: Int) =>
+        val guitarFuture: Future[Option[Guitar]] = (guitarDb ? FindGuitar(id)).mapTo[Option[Guitar]]
+        guitarFuture.map {
+          case None => HttpResponse(StatusCodes.NotFound) // api/guitar?id=9000
+          case Some(guitar) =>
+            HttpResponse(
+              entity = HttpEntity(
+                ContentTypes.`application/json`,
+                guitar.toJson.prettyPrint
+              )
+            )
+        }
+    }
+  }
+
+
   val requestHandler: HttpRequest => Future[HttpResponse] = {
-    case HttpRequest(HttpMethods.GET, Uri.Path("/api/guitar"),_, _, _) =>
-      val guitarsFuture: Future[List[Guitar]] = (guitarDb ? FindAllGuitars).mapTo[List[Guitar]]
-      guitarsFuture.map { guitars =>
-        HttpResponse(
-          entity = HttpEntity(
-            ContentTypes.`application/json`,
-            guitars.toJson.prettyPrint
+    case HttpRequest(HttpMethods.GET, uri@Uri.Path("/api/guitar"),_, _, _) =>
+      /*
+          Query parameter handling code
+          localhost:8080/api/endpoint?param1=value1&param2=value2
+       */
+
+      val query = uri.query() // query object <=> Map[String, String]
+      if (query.isEmpty) {
+        val guitarsFuture: Future[List[Guitar]] = (guitarDb ? FindAllGuitars).mapTo[List[Guitar]]
+        guitarsFuture.map { guitars =>
+          HttpResponse(
+            entity = HttpEntity(
+              ContentTypes.`application/json`,
+              guitars.toJson.prettyPrint
+            )
           )
-        )
+        }
+      } else {
+        // fetch guitar associated to the guitar id
+        // localhost:8080/api/guitars?id=5
+        getGuitar(query)
       }
+
     case HttpRequest(HttpMethods.POST, Uri.Path("/api/guitar"), _, entity, _) =>
       // entities are a Source[ByteString]
       val strictEntityFuture = entity.toStrict(3 seconds)
@@ -131,5 +167,11 @@ object LowLevelRest extends App with GuitarStoreJsonProtocol {
 
   Http().bindAndHandleAsync(requestHandler, "localhost", 8080)
 
+  /*
+      Exercise: enhance the Guitar case class with a quantity field, by default 0
+      - GET to /api/guitar/inventory?inStock=true/false which the guitars in/out of stock as JSON
+      - POST to /api/guitar/inventory?id=X&quantity=Y which adds Y guitars to the stock for the guitar with id X
+
+   */
 
 }
