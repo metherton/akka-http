@@ -83,11 +83,6 @@ object DirectivesBreakdown extends App {
     }
 
 
-
-  /*
-      Type 3 - parameter directives
-   */
-
   val queryParamExtractionRoute =
     // /api/item?id=45
     path("api" / "item") {
@@ -107,5 +102,95 @@ object DirectivesBreakdown extends App {
       }
     }
 
-  Http().bindAndHandle(extractRequestRoute, "localhost", 8080)
+  /*
+      Type 3 - composite directives
+
+   */
+  val simpleNestedRoute =
+    path("api" / "item") {
+      get {
+        complete(StatusCodes.OK)
+      }
+    }
+
+  val compactSimpleNestedRoute = (path("api" / "item") & get) {
+    complete(StatusCodes.OK)
+  }
+
+  val compactExtractRequestRoute =
+    (path("controlEndpoint") & extractRequest & extractLog) { (request, log) =>
+      log.info(s"I got the request: $request")
+      complete(StatusCodes.OK)
+    }
+
+  // /about and /aboutUs
+  val repeatedRoute =
+    path("about") {
+      complete(StatusCodes.OK)
+    } ~
+    path("aboutUs") {
+      complete(StatusCodes.OK)
+    }
+
+  val dryRoute =
+    (path("about") | path("aboutUs")) {
+      complete(StatusCodes.OK)
+    }
+
+  // yourblog.com/42 AND yourblog.com?postId=42
+  val blogByIdRoute =
+    path(IntNumber) {(blogId: Int) =>
+      // complex server logic
+      complete(StatusCodes.OK)
+
+    }
+
+  val blogByQueryParamRoute =
+    parameter('postId.as[Int]) {(blogpostId: Int) =>
+      // the same server logic
+      complete(StatusCodes.OK)
+    }
+
+  val combinedBlogByIdRoute =
+    (path(IntNumber) | parameter('postId.as[Int])) {(blogpostId: Int) =>
+      // your original server logic
+      complete(StatusCodes.OK)
+    }
+
+  /*
+      Type 4 - "actionable" directives
+
+   */
+
+  val completeOkRoute = complete(StatusCodes.OK)
+
+  val failedRoute =
+    path("notsupported") {
+      failWith(new RuntimeException("unsupported")) // complete with http 500
+    }
+
+  val routeWithRejection =
+//    path("home") {
+//      reject
+//    } ~
+    path("index") {
+      completeOkRoute
+    }
+
+  /*
+      Exercise: Can you spot the mistake ?
+
+   */
+  val getOrPutPath =
+    path("api" / "myEndpoint") {
+      get {
+        completeOkRoute
+      } ~ // this tilda was missing so added it
+      post {
+        complete(StatusCodes.Forbidden)
+      }
+    }
+
+
+  Http().bindAndHandle(getOrPutPath, "localhost", 8080)
 }
