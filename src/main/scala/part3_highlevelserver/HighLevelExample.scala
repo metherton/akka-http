@@ -104,43 +104,39 @@ object HighLevelExample extends App with GuitarStoreJsonProtocol {
       }
     }
 
+  def toHttpEntity(payload: String) = HttpEntity(ContentTypes.`application/json`, payload)
+
   val simplifiedGuitarServerRoute =
     (pathPrefix("api" / "guitar") & get) {
       path("inventory") {
         // inventory logic
         parameter('inStock.as[Boolean]) { inStock =>
-          val guitarFuture: Future[List[Guitar]] = (guitarDb ? FindGuitarsInStock(inStock)).mapTo[List[Guitar]]
-          val entityFuture = guitarFuture.map { guitars =>
-            HttpEntity(
-              ContentTypes.`application/json`,
-              guitars.toJson.prettyPrint
-            )
-          }
-          complete(entityFuture)
+          complete(
+            (guitarDb ? FindGuitarsInStock(inStock))
+              .mapTo[List[Guitar]]
+              .map(_.toJson.prettyPrint)
+              .map(toHttpEntity)
+          )
         }
       } ~
       (path(IntNumber) | parameter('id.as[Int])) { guitarId =>
-        val guitarFuture: Future[Option[Guitar]] = (guitarDb ? FindGuitar(guitarId)).mapTo[Option[Guitar]]
-        val entityFuture = guitarFuture.map { guitarOption =>
-          HttpEntity(
-            ContentTypes.`application/json`,
-            guitarOption.toJson.prettyPrint
-          )
-        }
-        complete(entityFuture)
+        complete(
+          (guitarDb ? FindGuitar(guitarId))
+            .mapTo[Option[Guitar]]
+            .map(_.toJson.prettyPrint)
+            .map(toHttpEntity)
+        )
       } ~
       pathEndOrSingleSlash {
-        val guitarFuture: Future[List[Guitar]] = (guitarDb ? FindAllGuitars).mapTo[List[Guitar]]
-        val entityFuture = guitarFuture.map { guitars =>
-          HttpEntity(
-            ContentTypes.`application/json`,
-            guitars.toJson.prettyPrint
-          )
-        }
-        complete(entityFuture)
+        complete(
+          (guitarDb ? FindAllGuitars)
+            .mapTo[List[Guitar]]
+            .map(_.toJson.prettyPrint)
+            .map(toHttpEntity)
+        )
       }
     }
 
-  Http().bindAndHandle(guitarServerRoute, "localhost", 8080)
+  Http().bindAndHandle(simplifiedGuitarServerRoute, "localhost", 8080)
 
 }
