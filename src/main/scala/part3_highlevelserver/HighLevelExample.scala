@@ -103,6 +103,44 @@ object HighLevelExample extends App with GuitarStoreJsonProtocol {
         }
       }
     }
+
+  val simplifiedGuitarServerRoute =
+    (pathPrefix("api" / "guitar") & get) {
+      path("inventory") {
+        // inventory logic
+        parameter('inStock.as[Boolean]) { inStock =>
+          val guitarFuture: Future[List[Guitar]] = (guitarDb ? FindGuitarsInStock(inStock)).mapTo[List[Guitar]]
+          val entityFuture = guitarFuture.map { guitars =>
+            HttpEntity(
+              ContentTypes.`application/json`,
+              guitars.toJson.prettyPrint
+            )
+          }
+          complete(entityFuture)
+        }
+      } ~
+      (path(IntNumber) | parameter('id.as[Int])) { guitarId =>
+        val guitarFuture: Future[Option[Guitar]] = (guitarDb ? FindGuitar(guitarId)).mapTo[Option[Guitar]]
+        val entityFuture = guitarFuture.map { guitarOption =>
+          HttpEntity(
+            ContentTypes.`application/json`,
+            guitarOption.toJson.prettyPrint
+          )
+        }
+        complete(entityFuture)
+      } ~
+      pathEndOrSingleSlash {
+        val guitarFuture: Future[List[Guitar]] = (guitarDb ? FindAllGuitars).mapTo[List[Guitar]]
+        val entityFuture = guitarFuture.map { guitars =>
+          HttpEntity(
+            ContentTypes.`application/json`,
+            guitars.toJson.prettyPrint
+          )
+        }
+        complete(entityFuture)
+      }
+    }
+
   Http().bindAndHandle(guitarServerRoute, "localhost", 8080)
 
 }
