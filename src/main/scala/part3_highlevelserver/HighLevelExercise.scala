@@ -69,19 +69,27 @@ object HighLevelExercise extends App with PersonJsonProtocol {
         val entity = request.entity
         val strictEntityFuture = entity.toStrict(2 seconds)
         val personFuture = strictEntityFuture.map(_.data.utf8String.parseJson.convertTo[Person])
-        // SIDE EFFECT
-        personFuture.onComplete {
+        onComplete(personFuture) {
           case Success(person) =>
             log.info(s"Got person: $person")
             people = people :+ person
+            complete(StatusCodes.OK)
           case Failure(ex) =>
-            log.warning(s"something failed with fetching the person from the entity: $ex")
+            failWith(ex)
         }
-        complete(personFuture
-          .map(_ => StatusCodes.OK)
-          .recover {
-            case _ => StatusCodes.InternalServerError
-        })
+        // SIDE EFFECT
+//        personFuture.onComplete {
+//          case Success(person) =>
+//            log.info(s"Got person: $person")
+//            people = people :+ person
+//          case Failure(ex) =>
+//            log.warning(s"something failed with fetching the person from the entity: $ex")
+//        }
+//        complete(personFuture
+//          .map(_ => StatusCodes.OK)
+//          .recover {
+//            case _ => StatusCodes.InternalServerError
+//        })
       }
     }
   Http().bindAndHandle(personServerRoute, "localhost", 8080)
