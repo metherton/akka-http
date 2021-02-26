@@ -1,10 +1,11 @@
 package part4_client
 
 import akka.actor.ActorSystem
-import akka.http.scaladsl.Http
+import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpMethods, HttpRequest, HttpResponse, Uri}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
+import javax.net.ssl.SSLContext
 
 import scala.util.{Failure, Success}
 import spray.json._
@@ -15,16 +16,39 @@ object ConnectionLevel extends App with PaymentJsonProtocol {
   implicit val system = ActorSystem("ConnectionLevel")
   implicit val materializer = ActorMaterializer()
   import system.dispatcher
+/*
 
-//  val connectionFlow = Http().outgoingConnection("www.google.com")
-//
-//  def oneOffRequest(request: HttpRequest) =
-//    Source.single(request).via(connectionFlow).runWith(Sink.head)
-//
-//  oneOffRequest(HttpRequest()).onComplete {
-//    case Success(response) => println(s"Got successful response: $response")
-//    case Failure(ex) => println(s"sending the request failed; $ex")
-//  }
+  val httpsConnectionContext = ConnectionContext.https(SSLContext.getDefault)
+  //            val bla = Http().newHostConnectionPoolHttps("https://financialmodelingprep.com/api/v3/quote/AAPL,FB?apikey=0a314c85fe75ed860b38f1d1b4c2bdd2", connectionContext = httpsConnectionContext)
+  //            val bla = Http().newHostConnectionPoolHttps("https://financialmodelingprep.com/api/v3/profile/AAPL?apikey=demo", connectionContext = httpsConnectionContext)
+  val connectionFlow = Http().newHostConnectionPoolHttps("financialmodelingprep.com", connectionContext = httpsConnectionContext)
+
+  val cf = Http().outgoingConnection("financialmodelingprep.com")
+
+  //akka.stream.scaladsl.Source.single(request).via(cf).to(Sink.foreach[HttpResponse](println)).run()
+  def oneOfRequest(request: HttpRequest)=
+  // akka.stream.scaladsl.Source.single(request).via(cf).to(Sink.foreach[HttpResponse](println)).run()
+    akka.stream.scaladsl.Source.single(request).via(cf).runWith(Sink.head)
+  //
+  oneOfRequest(HttpRequest(uri = "/api/v3/profile/AAPL?apikey=0a314c85fe75ed860b38f1d1b4c2bdd2")).onComplete {
+    case Success(response) => println(s"gor respon $response")
+    case Failure(ex) => println(s"sedin failed: $ex")
+  }
+
+
+*/
+
+
+  val connectionFlow = Http().outgoingConnection("www.google.com")
+
+
+  def oneOffRequest(request: HttpRequest) =
+    Source.single(request).via(connectionFlow).runWith(Sink.head)
+
+  oneOffRequest(HttpRequest()).onComplete {
+    case Success(response) => println(s"Got successful response: $response")
+    case Failure(ex) => println(s"sending the request failed; $ex")
+  }
 
   /*
       A small payment system
