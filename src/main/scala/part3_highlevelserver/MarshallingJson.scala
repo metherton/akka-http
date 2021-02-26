@@ -1,9 +1,13 @@
 package part3_highlevelserver
 
 import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import akka.http.scaladsl.model.StatusCodes
 import akka.stream.ActorMaterializer
 import part3_highlevelserver.GameAreaMap.AddPlayer
-
+// step 1
+import spray.json._
 case class Player(nickname: String, characterClass: String, level: Int)
 
 object GameAreaMap {
@@ -44,13 +48,25 @@ class GameAreaMap extends Actor with ActorLogging {
   }
 }
 
-object MarshallingJson extends App {
+trait PlayerJsonProtocol extends DefaultJsonProtocol {
+  // step 2
+  implicit val playerFormat = jsonFormat3(Player)
+}
+
+object MarshallingJson extends App
+  // step 3
+  with PlayerJsonProtocol
+  // step 4
+  with SprayJsonSupport {
 
   implicit val system = ActorSystem("MarshallingJson")
   implicit val materializer = ActorMaterializer()
   import system.dispatcher
   import GameAreaMap._
   import akka.http.scaladsl.server.Directives._
+  import scala.concurrent.duration._
+  import akka.pattern.ask
+  import akka.util.Timeout
 
   val rtjvmGameMap = system.actorOf(Props[GameAreaMap], "rockTheJVMGameAreaMap")
   val playersList = List(
@@ -70,32 +86,37 @@ object MarshallingJson extends App {
         POST /api/player with JSON payload, adds the player to the map
         Exercise DELETE /api/player with JSON payload, removes player from map
 
+
    */
 
+  implicit val timeout = Timeout(2 seconds)
   val rtjvmGameRouteSkel =
     pathPrefix("api" / "player") {
       get {
         path("class" / Segment) { characterClass =>
-          // TODO 1: get all players with character class
-          reject
+          val playersByClassFuture = (rtjvmGameMap ? GetPlayersByClass(characterClass)).mapTo[List[Player]]
+          complete(playersByClassFuture)
         } ~
         (path(Segment) | parameter("nickname")) { nickname =>
-          // TODO 2: get  player with nickname
-          reject
+          val playerOptionFuture = (rtjvmGameMap ? GetPlayer(nickname)).mapTo[Option[Player]]
+          complete(playerOptionFuture)
         } ~
         pathEndOrSingleSlash {
-          // TODO 3: get all the players
-          reject
+          complete((rtjvmGameMap ? GetAllPlayers).mapTo[List[Player]])
         }
       } ~
       post {
-        // TODO 4: add a player
-        reject
+        entity(as[Player]) { player =>
+          complete((rtjvmGameMap ? AddPlayer(player)).map(_ => StatusCodes.OK))
+        }
       } ~
       delete {
-        // TODO 5: (exercise) delete a player
-        reject
+        entity(as[Player]) { player =>
+          complete((rtjvmGameMap ? RemovePlayer(player)).map(_ => StatusCodes.OK))
+        }
+
       }
     }
 
+  Http().bindAndHandle(rtjvmGameRouteSkel, "localhost", 8080)
 }
