@@ -39,13 +39,13 @@ object ConnectionLevel extends App with PaymentJsonProtocol {
 */
 
 
-  val connectionFlow = Http().outgoingConnection("www.google.com")
-
+//  val connectionFlow = Http().outgoingConnection("www.google.com")
+  val connectionFlow = Http().outgoingConnection("financialmodelingprep.com")
 
   def oneOffRequest(request: HttpRequest) =
     Source.single(request).via(connectionFlow).runWith(Sink.head)
 
-  oneOffRequest(HttpRequest()).onComplete {
+  oneOffRequest(HttpRequest(uri = "/api/v3/profile/AAPL?apikey=0a314c85fe75ed860b38f1d1b4c2bdd2")).onComplete {
     case Success(response) => println(s"Got successful response: $response")
     case Failure(ex) => println(s"sending the request failed; $ex")
   }

@@ -9,6 +9,7 @@ import part3_highlevelserver.GameAreaMap.AddPlayer
 // step 1
 import spray.json._
 case class Player(nickname: String, characterClass: String, level: Int)
+case class Team(players: List[Player])
 
 object GameAreaMap {
   case object GetAllPlayers
@@ -51,7 +52,13 @@ class GameAreaMap extends Actor with ActorLogging {
 trait PlayerJsonProtocol extends DefaultJsonProtocol {
   // step 2
   implicit val playerFormat = jsonFormat3(Player)
+  implicit  val teamFormat = jsonFormat1(Team)
 }
+
+//implicit object ListPlayerJsonProtocol extends RootJsonFormat[DockerApiResult] {
+//  def read(value: JsValue) = DockerApiResult(value.convertTo[List[Container]])
+//  def write(obj: DockerApiResult) = obj.results.toJson
+//}
 
 object MarshallingJson extends App
   // step 3
@@ -107,6 +114,7 @@ object MarshallingJson extends App
       } ~
       post {
         entity(as[Player]) { player =>
+          println(s"player $player")
           complete((rtjvmGameMap ? AddPlayer(player)).map(_ => StatusCodes.OK))
         }
       } ~
@@ -115,6 +123,15 @@ object MarshallingJson extends App
           complete((rtjvmGameMap ? RemovePlayer(player)).map(_ => StatusCodes.OK))
         }
 
+      }
+    } ~
+    pathPrefix("api" / "bla") {
+      post {
+        entity(as[Team]) { team =>
+          val listPlayers = team.players
+          println(s"players is $listPlayers.")
+          complete(StatusCodes.OK)
+        }
       }
     }
 
