@@ -1,15 +1,22 @@
 package part3_highlevelserver
 
 import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
-import akka.http.scaladsl.Http
+import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
-import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.{HttpHeader, HttpRequest, HttpResponse, StatusCodes}
 import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.{Sink, Source}
+import javax.net.ssl.SSLContext
 import part3_highlevelserver.GameAreaMap.AddPlayer
+import part4_client.ConnectionLevel.connectionFlow
+
+import scala.util.{Failure, Success}
 // step 1
 import spray.json._
 case class Player(nickname: String, characterClass: String, level: Int)
 case class Team(players: List[Player])
+case class Stock(symbol: String, name: String, price: Double, exchange: String)
+case class Stocks(stocks: List[Stock])
 
 object GameAreaMap {
   case object GetAllPlayers
@@ -53,6 +60,8 @@ trait PlayerJsonProtocol extends DefaultJsonProtocol {
   // step 2
   implicit val playerFormat = jsonFormat3(Player)
   implicit  val teamFormat = jsonFormat1(Team)
+  implicit val stockFormat = jsonFormat4(Stock)
+  implicit val stocksFormat = jsonFormat1(Stocks)
 }
 
 //implicit object ListPlayerJsonProtocol extends RootJsonFormat[DockerApiResult] {
@@ -126,6 +135,19 @@ object MarshallingJson extends App
       }
     } ~
     pathPrefix("api" / "bla") {
+      get {
+        val httpsConnectionContext = ConnectionContext.https(SSLContext.getDefault)
+        val connectionFlow = Http().outgoingConnectionHttps("financialmodelingprep.com", 443, httpsConnectionContext)
+        def oneOffRequest(request: HttpRequest) =
+          Source.single(request).via(connectionFlow).runWith(Sink.head)
+
+        val response = oneOffRequest(HttpRequest(uri = "/api/v3/stock/list?apikey=0a314c85fe75ed860b38f1d1b4c2bdd2"))
+        onComplete(response) {
+          case Success(response) =>
+            complete(HttpResponse(StatusCodes.OK, Nil, response.entity))
+          case Failure(ex) => failWith(ex)
+        }
+      } ~
       post {
         entity(as[Team]) { team =>
           val listPlayers = team.players
