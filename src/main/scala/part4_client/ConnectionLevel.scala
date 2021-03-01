@@ -3,19 +3,37 @@ package part4_client
 import akka.actor.ActorSystem
 import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpMethods, HttpRequest, HttpResponse, Uri}
+import akka.http.scaladsl.unmarshalling.{PredefinedFromEntityUnmarshallers, Unmarshal}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
 import javax.net.ssl.SSLContext
+import part3_highlevelserver.{Person, Player, Stock, Stocks, Team}
 
 import scala.util.{Failure, Success}
 import spray.json._
 
-object ConnectionLevel extends App with PaymentJsonProtocol {
+case class Stock(symbol: String, name: String, price: Double, exchange: String)
+case class StockNews(symbol: String, publishedDate: String, title: String, image: String, site: String, text: String, url:String)
+
+//case class Stocks(stocks: List[Stock])
+
+trait StockJsonProtocol extends DefaultJsonProtocol {
+  // step 2
+
+
+  implicit val stockJson = jsonFormat4(Stock)
+  implicit val stockNewsJson = jsonFormat7(StockNews)
+
+
+}
+
+object ConnectionLevel extends App with StockJsonProtocol with PaymentJsonProtocol {
 
 
   implicit val system = ActorSystem("ConnectionLevel")
   implicit val materializer = ActorMaterializer()
   import system.dispatcher
+  import scala.concurrent.duration._
 /*
 
   val httpsConnectionContext = ConnectionContext.https(SSLContext.getDefault)
@@ -39,14 +57,26 @@ object ConnectionLevel extends App with PaymentJsonProtocol {
 */
 
 
+
 //  val connectionFlow = Http().outgoingConnection("www.google.com")
-  val connectionFlow = Http().outgoingConnection("financialmodelingprep.com")
+  //val connectionFlow = Http().outgoingConnection("financialmodelingprep.com")
+  val httpsConnectionContext = ConnectionContext.https(SSLContext.getDefault)
+  val connectionFlow = Http().outgoingConnectionHttps("financialmodelingprep.com", 443, httpsConnectionContext)
+
 
   def oneOffRequest(request: HttpRequest) =
     Source.single(request).via(connectionFlow).runWith(Sink.head)
 
-  oneOffRequest(HttpRequest(uri = "/api/v3/profile/AAPL?apikey=0a314c85fe75ed860b38f1d1b4c2bdd2")).onComplete {
-    case Success(response) => println(s"Got successful response: $response")
+  oneOffRequest(HttpRequest(uri = "/api/v3/stock_news?tickers=AAPL,FB,GOOG,AMZN&limit=50&&apikey=0a314c85fe75ed860b38f1d1b4c2bdd2")).onComplete {
+    case Success(response) =>
+      val strictEntityFuture = response.entity.toStrict(10 seconds)
+      val stocksFuture = strictEntityFuture.map(_.data.utf8String.parseJson.convertTo[List[StockNews]])
+
+      stocksFuture.onComplete {
+        case Success(x) => println(s"entity string: $x")
+        case Failure(x) => println(s"failed with $x")
+      }
+      println(s"Got successful response entity: ${response.entity}")
     case Failure(ex) => println(s"sending the request failed; $ex")
   }
 

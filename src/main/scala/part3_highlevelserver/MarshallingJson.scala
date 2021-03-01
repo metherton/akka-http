@@ -15,7 +15,7 @@ import scala.util.{Failure, Success}
 import spray.json._
 case class Player(nickname: String, characterClass: String, level: Int)
 case class Team(players: List[Player])
-case class Stock(symbol: String, name: String, price: Double, exchange: String)
+case class Stock(symbol: String, name: String, exchange: String = "default", price: Double)
 case class Stocks(stocks: List[Stock])
 
 object GameAreaMap {
