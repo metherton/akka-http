@@ -3,7 +3,7 @@ package part2_lowlevelserver
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.IncomingConnection
-import akka.http.scaladsl.model.headers.Location
+import akka.http.scaladsl.model.headers.{HttpCookie, Location}
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpMethods, HttpRequest, HttpResponse, StatusCodes, Uri}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Sink}

@@ -17,7 +17,9 @@ import scala.util.{Failure, Success}
 import spray.json._
 case class Player(nickname: String, characterClass: String, level: Int)
 case class Team(players: List[Player])
-case class Stock(symbol: String, name: String, exchange: String = "default", price: Double)
+case class Stock(symbol: String, price: Double)
+//case class Stock(symbol: String, name: String, price: Double, exchange: String = "default")
+
 case class Stocks(stocks: List[Stock])
 case class StockNews(symbol: String, publishedDate: String, title: String, image: String, site: String, text: String, url:String)
 
@@ -25,7 +27,8 @@ trait PlayerJsonProtocol extends DefaultJsonProtocol {
   // step 2
   implicit val playerFormat = jsonFormat3(Player)
   implicit  val teamFormat = jsonFormat1(Team)
-  implicit val stockFormat = jsonFormat4(Stock)
+  //implicit val stockFormat = jsonFormat4(Stock)
+  implicit val stockFormat = jsonFormat2(Stock)
   implicit val stocksFormat = jsonFormat1(Stocks)
   implicit val stockNewsJson = jsonFormat7(StockNews)
 }
@@ -168,8 +171,7 @@ object MarshallingJson extends App
           complete(playerOptionFuture)
         } ~
         pathEndOrSingleSlash {
-          val bla: Future[Any] = (rtjvmGameMap ? GetAllPlayers)
-          complete(bla.mapTo[List[Player]])
+          complete((rtjvmGameMap ? GetAllPlayers).mapTo[List[Player]])
         }
       } ~
       post {
@@ -195,17 +197,19 @@ object MarshallingJson extends App
           def oneOffRequest(request: HttpRequest) =
             Source.single(request).via(connectionFlow).runWith(Sink.head)
 
-          onComplete(oneOffRequest(HttpRequest(uri = "/api/v3/stock_news?tickers=AAPL,FB,GOOG,AMZN&limit=50&&apikey=0a314c85fe75ed860b38f1d1b4c2bdd2"))) {
+          onComplete(oneOffRequest(HttpRequest(uri = "/api/v3/stock/list?apikey=0a314c85fe75ed860b38f1d1b4c2bdd2"))) {
+
+       //   onComplete(oneOffRequest(HttpRequest(uri = "/api/v3/stock_news?tickers=AAPL,FB,GOOG,AMZN&limit=50&&apikey=0a314c85fe75ed860b38f1d1b4c2bdd2"))) {
             case Success(response) =>
               val strictEntityFuture = response.entity.toStrict(10 seconds)
-              val stocksFuture = strictEntityFuture.map(_.data.utf8String.parseJson.convertTo[List[StockNews]])
+              val stocksFuture = strictEntityFuture.map(_.data.utf8String.parseJson.convertTo[List[Stock]])
 
               onComplete(stocksFuture) {
                 case Success(x) => complete(x)
-                case Failure(x) => complete(StatusCodes.BadRequest)
+                case Failure(ex) => failWith(ex)
               }
 
-            case Failure(ex) => complete(StatusCodes.BadRequest)
+            case Failure(ex) => failWith(ex)
           }
         }
       } ~
