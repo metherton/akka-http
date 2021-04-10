@@ -73,7 +73,7 @@ object WebSocketDemo extends App {
       )
     } ~
     path("greeter") {
-      handleWebSocketMessages(websocketFlow)
+      handleWebSocketMessages(socialFlow)
     }
 
 
