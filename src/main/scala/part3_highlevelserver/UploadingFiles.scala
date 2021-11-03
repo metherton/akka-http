@@ -32,6 +32,8 @@ object UploadingFiles extends App {
             |  <body>
             |     <form action="http://localhost:8080/upload" method="post" enctype="multipart/form-data">
             |       <input type="file" name="myFile">
+            |       <input type="text" name="fname" id="fname" value="martin">
+            |       <input type="text" name="surname" id="surname" value="etherton">
             |       <button type="submit">Upload</button>
             |     </form>
             |  </body>
