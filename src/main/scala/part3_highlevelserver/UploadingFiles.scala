@@ -61,6 +61,8 @@ object UploadingFiles extends App {
             val fileContentSink: Sink[ByteString, _] = FileIO.toPath(file.toPath)
 
             fileContentsSource.runWith(fileContentSink)
+          } else if (bodyPart.name == "fname") {
+            println(bodyPart.entity.asInstanceOf[HttpEntity.Strict].getData().utf8String)
           }
         }
 

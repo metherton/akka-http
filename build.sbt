@@ -19,5 +19,6 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-testkit" % akkaVersion,
   "org.scalatest" %% "scalatest" % scalaTestVersion,
   // JWT
-  "com.pauldijou" %% "jwt-spray-json" % "2.1.0"
+  "com.pauldijou" %% "jwt-spray-json" % "2.1.0",
+  "org.apache.tika" %% "tika-core" % "1.11"
 )
